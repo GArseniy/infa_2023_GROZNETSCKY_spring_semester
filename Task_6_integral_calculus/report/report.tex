@@ -1,0 +1,403 @@
+\documentclass[a4paper,12pt,titlepage,finall]{article}
+
+\usepackage[T1,T2A]{fontenc}     % форматы шрифтов
+\usepackage[utf8x]{inputenc}     % кодировка символов, используемая в данном файле
+\usepackage[russian]{babel}      % пакет русификации
+\usepackage{tikz}                % для создания иллюстраций
+\usepackage{pgfplots}            % для вывода графиков функций
+\usepackage{geometry}		 % для настройки размера полей
+\usepackage{indentfirst}         % для отступа в первом абзаце секции
+\usepackage{amsmath}
+
+
+% выбираем размер листа А4, все поля ставим по 3см
+\geometry{a4paper,left=30mm,top=30mm,bottom=30mm,right=30mm}
+
+\setcounter{secnumdepth}{0}      % отключаем нумерацию секций
+
+\usepgfplotslibrary{fillbetween} % для изображения областей на графиках
+
+\begin{document}
+% Титульный лист
+\begin{titlepage}
+    \begin{center}
+	{\small \sc Московский государственный университет \\имени М.~В.~Ломоносова\\
+	Факультет вычислительной математики и кибернетики\\}
+	\vfill
+	{\Large \sc Отчет по заданию №6}\\
+	~\\
+	{\large \bf <<Сборка многомодульных программ. \\
+	Вычисление корней уравнений и определенных интегралов.>>}\\ 
+	~\\
+	{\large \bf Вариант 6 / 3 / 3}
+    \end{center}
+    \begin{flushright}
+	\vfill {Выполнил:\\
+	студент 102 группы\\
+	Грознецкий~А.~Е.\\
+	~\\
+	Преподаватели:\\
+	Смирнов~Л.~М. и Кулагин~А.~В.}
+    \end{flushright}
+    \begin{center}
+	\vfill
+	{\small Москва\\2023}
+    \end{center}
+\end{titlepage}
+
+% Автоматически генерируем оглавление на отдельной странице
+\tableofcontents
+\newpage
+
+\section{Постановка задачи}
+
+Была поставлена задача с заданной точностью $\varepsilon=0.001$ вычислисть площадь плоской фигуры, ограниченной тремя кривыми, заданными уравнениями $y=f_1(x)$, $y=f_2(x)$ и $y=f_3(x)$. Функции $f_1$, $f_2$, $f_3$ определяются вариантом, и в частности:
+\begin{itemize}
+	\item[] $f_1(x)=0.6x+3$,
+	\item[] $f_2(x)=(x-2)^3-1$,
+	\item[] $f_3(x)=3/x$.
+\end{itemize}
+
+Для решения задачи необходимо написать многомодульную программу на языках Си и Ассемблера, которая должна выполнить следующее:
+\begin{enumerate}
+	\item C некоторой точностью $\varepsilon_1$ определить абсциссы точек пересечения кривых, используя предусмотренный вариантом метод приближённого решения уравнения $F(x)=0$, в частности: метод касательных (Ньютона). Отрезки, в пределах которых программа будет искать точки пересечения, следует определить вручную.
+	\item Представить площадь заданной фигуры как алгебраическую сумму определенных интегралов и вычислить эти интегралы с некоторой точностью $\varepsilon_2$ по квадратурной формуле, определенной вариантом задания, в частности: по формуле парабол (Симпсона).
+\end{enumerate}
+
+Величины $\varepsilon_1$ и $\varepsilon_2$ следует подобрать вручную так, чтобы гарантировалось вычисление площади фигуры с точностью $\varepsilon$. 
+
+\newpage
+
+\section{Математическое обоснование}
+
+\subsection{Графики функций}
+
+Проанализируем набор кривых для наилучшего поиска точек пересечения. Нетрудно видеть (рис.~\ref{plot1}), что фигура, ограниченная данными кривыми, целиком лежит в квадрате со сторонами $[0,6]$, $[0,6]$, однако во избежание деления на ноль при вычислении значений в граничных точках функции $f_3(x)=3/x$ отступим от нуля на малое значение, так чтобы точки пересечения все еще лежали на новом отрезке. Пусть это будет отрезок $[0.1,6]$ — именно здесь и будем искать точки пересечения графиков. 
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[% grid=both,                % рисуем координатную сетку (если нужно)
+             legend pos = north west, 
+	     axis lines=middle,          % рисуем оси координат в привычном для математики месте
+             domain = 0:5,
+	     ymin = -0.5,
+	     ymax = 8,
+	     xmin = 0,
+	     xmax = 5,
+             axis equal,                 % требуем соблюдения пропорций по осям x и y
+             legend cell align=left,     % задаем выравнивание в рамке обозначений
+             scale=2,                           % задаем масштаб 2:1
+	     grid = minor]                    
+
+% первая функция
+% параметр samples отвечает за качество прорисовки
+\addplot[green,samples=256,thick,domain=-3:8] {0.6*x+3};
+% описание первой функции
+\addlegendentry{$f_1(x)=0.6x+3$}
+
+% вторая функция
+% здесь необходимо дополнительно ограничить диапазон значений переменной x
+\addplot[blue,samples=256,thick,domain=-0.5:5] {(x-2)^3-1};
+\addlegendentry{$f_2(x)=(x-2)^3-1$}
+
+% третья функция
+\addplot[red,samples=256,thick,domain=0:8] {3/x};
+\addlegendentry{$f_3(x)=3/x$}
+\end{axis}
+\end{tikzpicture}
+\caption{Плоская фигура, ограниченная графиками заданных уравнений}
+\label{plot1}
+\end{figure}
+
+Определим теперь необходимую точность $\varepsilon_1(\varepsilon)$ нахождения абсцисс точек пересечения графиков и $\varepsilon_2(\varepsilon)$ — точность вычисления параболлической суммы Симпсона. 
+
+Площадь фигуры есть алгебраическая сумма трех определенных интегралов, отвечающих площадям под соответствующими кривыми, поэтому вычисление каждого интеграла будем проводить с точностью $\varepsilon/3$. Тогда можно вычислять параболлические суммы с точностью $\varepsilon/6$, а абсциссы точек пересечения с такой точносстью, чтобы погрешность их вычисления оказывала влияние на значение интеграла не больше чем $\varepsilon/6$. Имеем $\varepsilon_2=\varepsilon/6=0.001/6$.
+
+Нетрудно заметить (рис.~\ref{plot1}), что точки пересечения графиков не сопадают с их экстремальными точками, следовательно можем считать функции монотонными в некоторой окрестности точек пересечения (на самом деле они монотонны не только в окрестности точек пересечения, но это, вообще говоря, неважно). 
+
+\subsection{Оценка погрешности площади}
+
+Рассмотрим некоторую функцию, обладающую свойством монотонности в некоторой окрестности некоторых точек и проанализируем влияние возбуждения значений граничных точек на площадь под графиком. В частности, рассмотрим функцию $y=\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}$, моготонную в окрестности точек $x=-1$ и $x=1$.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[% grid=both,                % рисуем координатную сетку (если нужно)
+             axis lines=middle,          % рисуем оси координат в привычном для математики месте
+             domain = -2:2,
+	     ymin = 0,
+	     ymax = 1,
+	     xmin = -1,
+	     xmax = 1,
+             enlargelimits,              % разрешаем при необходимости увеличивать диапазоны переменных
+             legend cell align=left,     % задаем выравнивание в рамке обозначений
+             scale=1.5,                    % задаем масштаб 2:1
+             xticklabels={,,},           % убираем нумерацию с оси x
+             yticklabels={,,}]           % убираем нумерацию с оси y
+
+% первая функция
+% параметр samples отвечает за качество прорисовки
+\addplot[red,samples=256,thick,name path=A] {1/sqrt(2*3.1415)*e^(-x^2/2)};
+% описание первой функции
+\addlegendentry{$y=\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}$}
+\addlegendimage{empty legend}\addlegendentry{}
+
+\addplot[black,domain=-1:1,samples=256,thick,name path=B] {0};
+
+\addplot[pink!20,samples=256] fill between[of=A and B,soft clip={domain=-1:1}];
+
+% Поскольку автоматическое вычисление точек пересечения кривых в TiKZ реализовать сложно,
+% будем явно задавать координаты.
+\addplot[dashed] coordinates { (-1, 0.24197) (-1, 0) };
+\addplot[color=black] coordinates {(-1-0.10, 0)} node [label={-10:{\small -1}}]{};
+
+\addplot[] coordinates { (-1+0.05, 0.254) (-1+0.05, 0) };
+\addplot[] coordinates { (-1-0.05, 0.2298) (-1-0.05, 0) };
+
+
+
+\addplot[dashed] coordinates { (1, 0.24197) (1, 0) };
+\addplot[color=black] coordinates {(1-0.1, 0)} node [label={-10:{\small 1}}]{};
+
+
+
+\end{axis}
+\end{tikzpicture}
+\caption{Некоторая функция, обладающая свойством монотонности в некоторой окрестности некоторых точек}
+\label{plot2}
+\end{figure}
+
+Легко видеть (рис.~\ref{plot2}), что изменение положения граничной точки $x_0=-1$ в пределах $\pm\delta$ изменяет значение площади не более, чем на $\delta M$, где $M$ — наибольшее значение на отрезке $[x_0-\delta,x_0+\delta]$. Однако для функции $f(x)$, монотонной в $\delta$-окрестности точки $x_0$, верно, что наибольшее значение достигается в граничной точке. Таким образом, погрешность вычисления площади $\theta(\delta)$:
+
+ $$\theta(\delta)= \delta \cdot max\{f(x_0-\delta), f(x_0+\delta)\}$$
+
+\subsection{Вычисление погрешностей $\varepsilon_1$ точек пересечения $f_1$, $f_2$, $f_3$}
+
+Для начала вычислим аналитически точки пересечения графиков функций $f_1$, $f_2$, $f_3$. 
+
+\begin{itemize}
+	\item $f_1(x)=f_2(x)$ при $x_{1,2}=\dfrac{\sqrt[{3}]{\left(2\,\sqrt{211}+13\,\sqrt{5}\right)^{2}}+1}{\sqrt{5}\,\sqrt[{3}]{2\,\sqrt{211}+13\,\sqrt{5}}}+2$
+	\item $f_1(x)=f_3(x)$ при $x_{1,3}=\dfrac{3\,\sqrt{5}}{2}-\dfrac{5}{2}$
+	\item $f_2(x)=f_3(x)$ при $x_{2,3}=\sqrt{\dfrac{\sqrt{21}}{2}+\dfrac{3}{4}}+\dfrac{3}{2}$
+\end{itemize}
+
+Воспользуемся выведенной формулой для оценки погрешности площади:
+
+ $$\theta(\delta)= \delta \cdot max\{f(x_0-\delta), f(x_0+\delta)\}$$
+
+Заметим, что каждая из точек пересечения $x_{1,2}$, $x_{1,3}$, $x_{2,3}$ будет использована для вычисления двух определенных интегралов, поэтому нужно будет выбрать минимальное из двух $\delta$, полученных из уравнения выше для каждой точки. Минимальное $\delta$ будет соответствовать той функции, график которой сильнее изменяется в $\delta$-окрестности точки (строго говоря производная в точке по модулю больше). Для каждой точки это функция:
+
+\begin{itemize}
+	\item[] $x_{1,2}$: $f_2(x)$
+	\item[] $x_{1,3}$: $f_3(x)$
+	\item[] $x_{2,3}$: $f_2(x)$
+\end{itemize}
+
+Вообще говоря, в уравнении выше достаточно выполнения неравентсва:
+
+ $$\theta(\delta)= \delta \cdot max\{f(x_0-\delta), f(x_0+\delta)\} \leq \varepsilon/6$$
+
+Искомое $\varepsilon_1 = min\{ \delta_{1,2}, \delta_{1,3}, \delta_{2,3}\}$, где каждое $\delta_{i,j}$ удовлетворяет соответствующему ему неравенству. 
+
+Методом подбора находим подходящие $\delta_{i,j}$: $\delta_{1,2} = 0.00001$, $\delta_{1,3} = 0.00001$, $\delta_{2,3} = 0.0001$. Имеем: $\varepsilon_1 = 0.00001$
+
+
+\newpage
+
+\section{Результаты экспериментов}
+
+Для получения точек пересечения запустим программу с ключом \texttt{points}. Результаты работы программы отобразим ниже (таблица~\ref{table1}):
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+Кривые & $x$ & $y$ \\
+\hline
+1 и 2 &  3.84776 & 5.30866 \\
+1 и 3 &  0.85410 & 3.51246 \\
+2 и 3 &  3.24393 & 0.92480 \\
+\hline
+\end{tabular}
+\caption{Координаты точек пересечения}
+\label{table1}
+\end{table}
+
+
+Также запустим программу с ключом \texttt{area}, чтобы получить значение площади фигуры (рис.~\ref{plot3}). Полученное значение $S=7.4884$.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[% grid=both,                % рисуем координатную сетку (если нужно)
+             legend pos = north west, 
+	     axis lines=middle,          % рисуем оси координат в привычном для математики месте
+             domain = 0:5,
+	     ymin = -0.5,
+	     ymax = 8,
+	     xmin = 0,
+	     xmax = 5,
+             axis equal,                 % требуем соблюдения пропорций по осям x и y
+             legend cell align=left,     % задаем выравнивание в рамке обозначений
+             scale=2,                           % задаем масштаб 2:1
+	     grid = minor]                    
+
+% первая функция
+% параметр samples отвечает за качество прорисовки
+\addplot[green,samples=256,thick,domain=-3:8,name path=A] {0.6*x+3};
+% описание первой функции
+\addlegendentry{$f_1(x)=0.6x+3$}
+
+% вторая функция
+% здесь необходимо дополнительно ограничить диапазон значений переменной x
+\addplot[blue,samples=256,thick,domain=-0.5:5,name path=B] {(x-2)^3-1};
+\addlegendentry{$f_2(x)=(x-2)^3-1$}
+
+% третья функция
+\addplot[red,samples=256,thick,domain=0:8,name path=C] {3/x};
+\addlegendentry{$f_3(x)=3/x$}
+
+\addplot[blue!10,samples=256] fill between[of=A and B,soft clip={domain=3.23393:3.84776}];
+\addplot[blue!10,samples=256] fill between[of=A and C,soft clip={domain=0.85410:3.25393}];
+\addlegendentry{$S=7.4884$}
+
+\end{axis}
+\end{tikzpicture}
+\caption{Плоская фигура, ограниченная графиками заданных уравнений}
+\label{plot3}
+\end{figure}
+
+\newpage
+
+\section{Структура программы и спецификация функций}
+
+Программа состоит из трёх файлов: \texttt{main.c}, \texttt{functions.h}, \texttt{functions.asm}.
+
+\subsection{Структура файла \texttt{\textbf{main.c}}}
+Файл \texttt{\textbf{main.c}} можно разделить на два логически независимых \textit{модуля}: 
+\begin{enumerate}
+	\item Функции, отвечающие за взаимодействие с пользователем через командную строку.
+	\item Функции, выполняющие математические вычисления.
+\end{enumerate}
+\textbf{Первый модуль} включает в себя функции:
+
+\begin{itemize}
+	\item \texttt{void points(int argc, char *argv[])}: \textit{show points of intersection}
+	\item \texttt{void iterations(int argc, char *argv[])}: \textit{show count of iterations for calculating intersection points}
+	\item \texttt{void area(int argc, char *argv[])}: \textit{show an area of the figure}
+	\item \texttt{void test(int argc, char *argv[])}: \textit{test of program functions}
+	\item \texttt{void help(int argc, char *argv[])}: \textit{show help information}
+	\item \texttt{void no\_command(int argc, char *argv[])}: \textit{for unknown commands}
+\end{itemize}
+\textbf{Второй модуль} включает в себя функции:
+
+\begin{itemize}
+	\item \texttt{double parabolic\_integral\_sum(function f, double a, double b, int~n)}: \textit{calculate parabolic integral sum of function f(x) on segment [a,~b]}
+	\item \texttt{double integral(function f, double a, double b, double eps)}: \textit{calculate integral of function f(x) on segment [a,~b], using \texttt{parabolic\_integral\_sum}}
+	\item \texttt{double root(function f, function df, function g, function dg, double~a, double~b, double~eps)}: \textit{calculate intersection point of functions: f(x), g(x) on segment [a,~b]}.
+\end{itemize}
+
+\subsection{Структура файла \texttt{\textbf{functions.h}}}
+
+Файл \texttt{\textbf{functions.h}} является header файлом, и он содержит лишь заголовки функций \texttt{functions.asm}, описанные в следующем разделе.
+
+\subsection{Структура файла \texttt{\textbf{functions.asm}}}
+
+Файл \texttt{\textbf{functions.asm}} содержит функции $f_1$, $f_2$, $f_3$ и их производные с сигнатурой \texttt{double (*function)(double x)}.
+
+
+\newpage
+
+\section{Сборка программы (Makefile)}
+
+Сборка программы происходит с помощью следующего файла \texttt{Makefile}:
+\newline
+
+\texttt{MAIN\_FILE=main.c}
+
+\texttt{OBJ\_MAIN\_FILE=main.o}
+
+\texttt{EXE\_MAIN\_FILE=main.out}
+\newline
+
+\texttt{LIB\_FILE=functions.asm}
+
+\texttt{OBJ\_LIB\_FILE=functions.o}
+\newline
+
+\texttt{GCC\_MAKE\_OBJ=gcc -m32 -std=c99 -c \$\{MAIN\_FILE\} -o \$\{OBJ\_MAIN\_FILE\}}
+
+\texttt{NASM\_MAKE\_OBJ=nasm -f elf32 \$\{LIB\_FILE\} -o \$\{OBJ\_LIB\_FILE\}}
+
+\texttt{GCC\_LINK=gcc -m32 \$\{OBJ\_MAIN\_FILE\} \$\{OBJ\_LIB\_FILE\} -o \$\{EXE\_MAIN\_FILE\}}
+
+\texttt{CLEAR\_OBJ=rm *.o}
+\newline
+
+\texttt{all:}
+
+\texttt{	@\$\{GCC\_MAKE\_OBJ\}}
+
+\texttt{	@\$\{NASM\_MAKE\_OBJ\}}
+
+\texttt{	@\$\{GCC\_LINK\}}
+\newline
+
+\texttt{clear:}
+
+\texttt{	@\$\{CLEAR\_OBJ\}}
+\newline
+
+Зависимость файлов можно выразить следующей схемой:
+
+\texttt{main.c} \textbf{<--} \texttt{functions.asm}
+
+то есть файл \texttt{main.c} использует функции файла \texttt{functions.asm}.
+
+\newpage
+
+\section{Отладка программы, тестирование функций}
+Написание программного кода происходило в среде разработки \texttt{CLion}, что позволило избежать ошибок компилляции и отладки программы. Тестрирование каждой функции, выполняющей математические вычисления, произведено вручную на трех различных тестах. 
+
+\subsection{Функция \texttt{root}}
+Функция \texttt{root} работает корректно, полученные точки пересечения графиков функций $f_1$, $f_2$, $f_3$ действительно вычислены с необходимой точностью:
+\begin{itemize}
+	\item $x_{1,2}=\dfrac{\sqrt[{3}]{\left(2\,\sqrt{211}+13\,\sqrt{5}\right)^{2}}+1}{\sqrt{5}\,\sqrt[{3}]{2\,\sqrt{211}+13\,\sqrt{5}}}+2 \approx 3.84776$
+	\item $x_{1,3}=\dfrac{3\,\sqrt{5}}{2}-\dfrac{5}{2} \approx 0.85410$
+	\item $x_{2,3}=\sqrt{\dfrac{\sqrt{21}}{2}+\dfrac{3}{4}}+\dfrac{3}{2} \approx 3.24393$
+\end{itemize}
+
+Значения совпадают с вычисленными!
+
+\subsection{Функция \texttt{integral}}
+
+Функция \texttt{integral} работает корректно, полученные значения площади под графиками функций $f_1$, $f_2$, $f_3$ на соответствующих сегментах действительно вычислены с необходимой точностью:
+\begin{itemize}
+	\item $S_1 = S(f_1, x_{1,3}, x_{1,2}) \approx 13.204$
+	\item $S_2 = S(f_2, x_{2,3}, x_{1,2})  \approx 4.003$
+	\item $S_3 = S(f_3, x_{1,3}, x_{2,3})  \approx 1.712$
+\end{itemize}
+
+Значения совпадают с вычисленными! 
+
+Результирующая площадь: $S=S_1-(S_2+S_3) = 7.4884$.
+
+\newpage
+
+\section{Программа на Си и на Ассемблере}
+Программа содержится в архиве, который приложен к этому отчету.
+
+\newpage
+
+\section{Анализ допущенных ошибок}
+Ошибок допущено не было.
+
+
+\newpage
+
+\section{Список цитируемой литературы}
+Вспомогательная литература не была использована.
+
+
+\end{document}
