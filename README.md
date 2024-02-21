@@ -1,1 +1,1 @@
-# infa_2023_GROZNETSCKY_spring_semester
+# 2023 MSU: Computer Architecture & Assembly Language
